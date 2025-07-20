@@ -8,6 +8,7 @@ class StoriesModal {
     this.closeBtn = document.querySelector('.closemodal');
     this.prevBtn = document.querySelector('.inner-prev');
     this.nextBtn = document.querySelector('.inner-next');
+    this.navigation = document.querySelector('.eventsmodalnavigation');
     
     this.currentStoryIndex = 0;
     this.currentPhotoIndex = 0;
@@ -15,6 +16,9 @@ class StoriesModal {
     this.autoProgressTimer = null;
     this.progressAnimationTimer = null;
     this.isMobile = window.innerWidth <= 479;
+    this.isPaused = false;
+    this.pauseStartTime = 0;
+    this.progressStartTime = 0;
     
     this.init();
   }
@@ -44,6 +48,7 @@ class StoriesModal {
     document.querySelectorAll('.swiper-slide.events').forEach(eventSlide => {
       eventSlide.addEventListener('click', (e) => {
         const eventId = eventSlide.querySelector('.eventid-out')?.textContent?.trim();
+        console.log('Clicked event ID:', eventId); // Для отладки
         this.openModal(eventId);
       });
     });
@@ -57,6 +62,141 @@ class StoriesModal {
 
     // Responsive
     window.addEventListener('resize', () => this.setupResponsive());
+
+    // Swipe для мобильных
+    this.setupSwipeGestures();
+
+    // Пауза при удержании
+    this.setupPauseGestures();
+  }
+
+  setupSwipeGestures() {
+    if (!this.isMobile) return;
+
+    let startX = 0;
+    let startY = 0;
+    let isSwipe = false;
+
+    this.modal.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      isSwipe = false;
+    });
+
+    this.modal.addEventListener('touchmove', (e) => {
+      if (!startX || !startY) return;
+
+      const diffX = Math.abs(e.touches[0].clientX - startX);
+      const diffY = Math.abs(e.touches[0].clientY - startY);
+
+      if (diffX > diffY && diffX > 50) {
+        isSwipe = true;
+        e.preventDefault();
+      }
+    });
+
+    this.modal.addEventListener('touchend', (e) => {
+      if (!isSwipe || !startX) return;
+
+      const endX = e.changedTouches[0].clientX;
+      const diffX = startX - endX;
+
+      if (Math.abs(diffX) > 50) {
+        if (diffX > 0) {
+          // Swipe left - следующая история
+          this.navigateToStory(this.currentStoryIndex + 1);
+        } else {
+          // Swipe right - предыдущая история
+          this.navigateToStory(this.currentStoryIndex - 1);
+        }
+      }
+
+      startX = 0;
+      startY = 0;
+      isSwipe = false;
+    });
+  }
+
+  setupPauseGestures() {
+    // Для мыши
+    this.modal.addEventListener('mousedown', (e) => {
+      // Проверяем, что клик не по кнопкам навигации
+      if (e.target.closest('.eventsmodalnavigation')) return;
+      this.pauseProgress();
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (this.isPaused) {
+        this.resumeProgress();
+      }
+    });
+
+    // Для тач-устройств
+    this.modal.addEventListener('touchstart', (e) => {
+      // Проверяем, что тач не по кнопкам навигации
+      if (e.target.closest('.eventsmodalnavigation')) return;
+      this.pauseProgress();
+    });
+
+    document.addEventListener('touchend', () => {
+      if (this.isPaused) {
+        this.resumeProgress();
+      }
+    });
+  }
+
+  pauseProgress() {
+    if (this.isPaused) return;
+    
+    this.isPaused = true;
+    this.pauseStartTime = Date.now();
+    
+    // Останавливаем автопрогресс
+    this.stopAutoProgress();
+    
+    // Скрываем навигацию
+    if (this.navigation) {
+      this.navigation.style.opacity = '0';
+      this.navigation.style.transition = 'opacity 300ms ease';
+    }
+    
+    // Останавливаем анимацию progress-bar
+    const currentBullet = this.pagination.children[this.currentPhotoIndex];
+    if (currentBullet) {
+      const progressBar = currentBullet.querySelector('.progress-bar');
+      const computedStyle = window.getComputedStyle(progressBar);
+      const currentWidth = computedStyle.width;
+      progressBar.style.width = currentWidth;
+      progressBar.style.transition = 'none';
+    }
+  }
+
+  resumeProgress() {
+    if (!this.isPaused) return;
+    
+    this.isPaused = false;
+    
+    // Показываем навигацию
+    if (this.navigation) {
+      this.navigation.style.opacity = '1';
+    }
+    
+    // Вычисляем оставшееся время
+    const pauseDuration = Date.now() - this.pauseStartTime;
+    const elapsed = Date.now() - this.progressStartTime;
+    const remaining = Math.max(0, 5000 - elapsed);
+    
+    // Возобновляем прогресс
+    this.startAutoProgress(remaining);
+    
+    // Возобновляем анимацию progress-bar
+    const currentBullet = this.pagination.children[this.currentPhotoIndex];
+    if (currentBullet) {
+      const progressBar = currentBullet.querySelector('.progress-bar');
+      const remainingSeconds = remaining / 1000;
+      progressBar.style.transition = `width ${remainingSeconds}s linear`;
+      progressBar.style.width = '100%';
+    }
   }
 
   setupResponsive() {
@@ -64,9 +204,17 @@ class StoriesModal {
   }
 
   openModal(eventId) {
+    console.log('Opening modal for event ID:', eventId); // Для отладки
+    console.log('Available stories:', this.stories.map(s => s.eventId)); // Для отладки
+    
     // Найти соответствующую историю
     const storyIndex = this.stories.findIndex(story => story.eventId === eventId);
-    if (storyIndex === -1) return;
+    console.log('Found story index:', storyIndex); // Для отладки
+    
+    if (storyIndex === -1) {
+      console.error('Story not found for event ID:', eventId);
+      return;
+    }
 
     this.currentStoryIndex = storyIndex;
     this.currentPhotoIndex = 0;
@@ -90,14 +238,10 @@ class StoriesModal {
     this.stopAutoProgress();
     this.modal.style.display = 'none';
     this.modal.style.opacity = '0';
+    this.isPaused = false;
   }
 
   setupStories() {
-    const containerWidth = this.storiesContainer.offsetWidth;
-    const activeStoryWidth = this.isMobile ? window.innerWidth : parseFloat(getComputedStyle(document.documentElement).fontSize) * 26.25;
-    const inactiveStoryWidth = this.isMobile ? 0 : activeStoryWidth * (18.75 / 26.25);
-    const storyMargin = this.isMobile ? 0 : parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.5;
-
     this.stories.forEach((story, index) => {
       const isActive = index === this.currentStoryIndex;
       const storyElement = story.element;
@@ -115,22 +259,19 @@ class StoriesModal {
           storyElement.style.zIndex = '1';
         }
       } else {
-        // На десктопе: центрирование активной истории
-        const width = isActive ? activeStoryWidth : inactiveStoryWidth;
-        storyElement.style.width = `${width}px`;
-        
-        // Вычисляем позицию для центрирования активной истории
-        const totalWidth = this.stories.length * inactiveStoryWidth + (activeStoryWidth - inactiveStoryWidth) + (this.stories.length - 1) * storyMargin;
-        const startX = (containerWidth - totalWidth) / 2;
-        
-        let translateX = startX;
-        for (let i = 0; i < index; i++) {
-          translateX += (i === this.currentStoryIndex ? activeStoryWidth : inactiveStoryWidth) + storyMargin;
-        }
-        
-        storyElement.style.transform = `translateX(${translateX}px)`;
+        // На десктопе: все истории видны, активная выделена
         storyElement.style.opacity = '1';
-        storyElement.style.zIndex = isActive ? '10' : '1';
+        storyElement.style.transform = 'translateX(0)';
+        storyElement.style.zIndex = isActive ? '10' : '5';
+        
+        // Добавляем обработчик клика для неактивных историй
+        if (!isActive) {
+          storyElement.style.cursor = 'pointer';
+          storyElement.onclick = () => this.navigateToStory(index);
+        } else {
+          storyElement.style.cursor = 'default';
+          storyElement.onclick = null;
+        }
       }
 
       // Показать/скрыть overlay для неактивных историй
@@ -145,6 +286,20 @@ class StoriesModal {
       // Анимация
       storyElement.style.transition = 'all 300ms ease';
     });
+  }
+
+  navigateToStory(storyIndex) {
+    if (storyIndex < 0 || storyIndex >= this.stories.length) return;
+    if (storyIndex === this.currentStoryIndex) return;
+
+    this.stopAutoProgress();
+    this.currentStoryIndex = storyIndex;
+    this.currentPhotoIndex = 0;
+    
+    this.setupStories();
+    this.updatePagination();
+    this.updateNavigation();
+    this.startAutoProgress();
   }
 
   setupPhotosInStory(story, isActive) {
@@ -205,8 +360,11 @@ class StoriesModal {
         // Текущее фото - анимация от 0 до 100%
         progressBar.style.width = '0%';
         progressBar.style.transition = 'width 5s linear';
+        this.progressStartTime = Date.now();
         setTimeout(() => {
-          progressBar.style.width = '100%';
+          if (!this.isPaused) {
+            progressBar.style.width = '100%';
+          }
         }, 10);
       } else {
         // Будущие фото - 0%
@@ -301,12 +459,14 @@ class StoriesModal {
     this.startAutoProgress();
   }
 
-  startAutoProgress() {
+  startAutoProgress(customDuration = 5000) {
     this.stopAutoProgress();
     
     this.autoProgressTimer = setTimeout(() => {
-      this.navigateNext();
-    }, 5000);
+      if (!this.isPaused) {
+        this.navigateNext();
+      }
+    }, customDuration);
   }
 
   stopAutoProgress() {
@@ -321,13 +481,12 @@ class StoriesModal {
 document.addEventListener('DOMContentLoaded', () => {
   // Небольшая задержка для корректной инициализации Swiper
   setTimeout(() => {
-    new StoriesModal();
+    window.storiesModal = new StoriesModal();
   }, 100);
 });
 
 // Инициализация при изменении размера окна
 window.addEventListener('resize', () => {
-  // Пересоздаем экземпляр при изменении ориентации на мобильных
   if (window.storiesModal) {
     window.storiesModal.setupResponsive();
   }
