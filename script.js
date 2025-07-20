@@ -53,6 +53,20 @@ document.addEventListener('DOMContentLoaded', () => {
     slide.addEventListener('click', () => openStory(idx));
   });
 
+  // Also open story when clicking an element with the `eventid-out` attribute
+  // or class inside a slide. This restores the behavior expected from the
+  // original markup where such elements trigger the modal.
+  document.querySelectorAll('[eventid-out], .eventid-out').forEach(el => {
+    el.addEventListener('click', e => {
+      const slide = e.currentTarget.closest('.swiper-slide.events');
+      if (!slide) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = eventSlides.indexOf(slide);
+      if (idx !== -1) openStory(idx);
+    });
+  });
+
   function updateSlidesStyle() {
     storySlides.forEach((s, idx) => {
       const overlay = s.querySelector('.stories-overlay');
