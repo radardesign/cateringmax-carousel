@@ -17,9 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let progressRemaining = SLIDE_DURATION;
   let isPaused = false;
 
-  const targetEm = 18.75;
-  const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize);
-  const targetPx = targetEm * rootFontSize;
 
   Object.assign(navWrapper.style, {
     position: 'absolute',
@@ -47,12 +44,27 @@ document.addEventListener('DOMContentLoaded', () => {
     currentInnerIndex = 0;
     resetStyles();
     modal.style.display = 'flex';
+    navWrapper.style.opacity = '1';
     updateSlidesStyle();
     requestAnimationFrame(() => requestAnimationFrame(centerStory));
   }
 
   eventSlides.forEach((slide, idx) => {
     slide.addEventListener('click', () => openStory(idx));
+  });
+
+  // Also open story when clicking an element with the `eventid-out` attribute
+  // or class inside a slide. This restores the behavior expected from the
+  // original markup where such elements trigger the modal.
+  document.querySelectorAll('[eventid-out], .eventid-out').forEach(el => {
+    el.addEventListener('click', e => {
+      const slide = e.currentTarget.closest('.swiper-slide.events');
+      if (!slide) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = eventSlides.indexOf(slide);
+      if (idx !== -1) openStory(idx);
+    });
   });
 
   function updateSlidesStyle() {
@@ -71,40 +83,21 @@ document.addEventListener('DOMContentLoaded', () => {
           opacity: idx === currentStoryIndex ? '0' : '1'
         });
       }
-      s.style.transition = 'width 0.5s ease';
-      s.style.width = idx === currentStoryIndex ? '' : `${targetPx}px`;
+      // Сохраняем естественную ширину слайдов для корректного центрирования
+      s.style.transition = '';
+      s.style.width = '';
     });
   }
 
   function centerStory() {
-    // Сброс трансформа для точных вычислений
-    storiesWrapper.style.transition = 'none';
-    storiesWrapper.style.transform = 'translateX(0)';
-    storySlides.forEach(s => {
-      const inner = s.querySelector('.inner-swiper .swiper-wrapper');
-      if (inner) {
-        inner.style.transition = 'none';
-        inner.style.transform = 'translateX(0)';
-      }
-    });
-    storiesWrapper.offsetHeight; // reflow
-
-    // Границы контейнера и активного слайда
-    const container = storiesWrapper.parentElement;
-    const cRect = container.getBoundingClientRect();
+    const containerWidth = storiesWrapper.parentElement.clientWidth;
     const active = storySlides[currentStoryIndex];
-    const aRect = active.getBoundingClientRect();
-
-    // Центры
-    const containerCenter = cRect.left + cRect.width / 2;
-    const activeCenter = aRect.left + aRect.width / 2;
-    const shift = containerCenter - activeCenter;
+    const shift = containerWidth / 2 - (active.offsetLeft + active.offsetWidth / 2);
 
     storiesWrapper.style.transition = 'transform 0.5s ease';
     storiesWrapper.style.transform = `translateX(${shift}px)`;
 
     updateInnerSlide();
-    // navWrapper.style.opacity = '1'; // теперь показываем после окончания transform
   }
 
   function updateInnerSlide() {
@@ -179,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeProg.style.transition = 'none';
         activeProg.style.width = `${(elapsed / SLIDE_DURATION) * 100}%`;
       }
+      navWrapper.style.opacity = '0';
       isPaused = true;
     }
   }
@@ -193,14 +187,37 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       progressStartTime = Date.now();
       autoProgressTimeout = setTimeout(goNext, progressRemaining);
+      navWrapper.style.opacity = '1';
       isPaused = false;
     }
   }
 
+  let startX = 0;
   storiesWrapper.addEventListener('pointerdown', e => {
-    if (storySlides[currentStoryIndex].contains(e.target)) pauseProgress();
+    if (!storySlides[currentStoryIndex].contains(e.target)) return;
+    startX = e.clientX;
+    pauseProgress();
   });
-  document.addEventListener('pointerup', resumeProgress);
+  storiesWrapper.addEventListener('pointerup', e => {
+    if (!storySlides[currentStoryIndex].contains(e.target)) {
+      resumeProgress();
+      return;
+    }
+    const diff = e.clientX - startX;
+    if (Math.abs(diff) > 40) {
+      diff < 0 ? goNext() : goPrev();
+    } else {
+      openActiveLink();
+    }
+    resumeProgress();
+  });
+  storiesWrapper.addEventListener('pointercancel', resumeProgress);
+
+  function openActiveLink() {
+    const slide = storySlides[currentStoryIndex];
+    const url = slide.dataset.url || slide.querySelector('a')?.href;
+    if (url) window.location.href = url;
+  }
 
   function goNext() {
     const innerCount = storySlides[currentStoryIndex].querySelectorAll('.inner-slide').length;
@@ -212,13 +229,9 @@ document.addEventListener('DOMContentLoaded', () => {
       currentInnerIndex = 0;
       navWrapper.style.opacity = '0';
       updateSlidesStyle();
-      const active = storySlides[currentStoryIndex];
-      active.addEventListener('transitionend', function handler(e) {
-        if (e.propertyName === 'width') {
-          active.removeEventListener('transitionend', handler);
-          centerStory();
-          navWrapper.style.opacity = '1';
-        }
+      requestAnimationFrame(() => {
+        centerStory();
+        navWrapper.style.opacity = '1';
       });
     }
   }
@@ -232,13 +245,9 @@ document.addEventListener('DOMContentLoaded', () => {
       currentInnerIndex = prevCount - 1;
       navWrapper.style.opacity = '0';
       updateSlidesStyle();
-      const active = storySlides[currentStoryIndex];
-      active.addEventListener('transitionend', function handler(e) {
-        if (e.propertyName === 'width') {
-          active.removeEventListener('transitionend', handler);
-          centerStory();
-          navWrapper.style.opacity = '1';
-        }
+      requestAnimationFrame(() => {
+        centerStory();
+        navWrapper.style.opacity = '1';
       });
     }
   }
