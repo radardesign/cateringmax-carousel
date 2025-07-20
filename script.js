@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+window.initEventsCarousel = function () {
 // Scoped REM
 function updateScopedRem() {
     const wrapper = document.querySelector(".eventscarouselwrapper");
@@ -390,4 +390,4 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.style.display = 'none';
     });
 });
-});
+};
