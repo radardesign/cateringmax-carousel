@@ -392,39 +392,24 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 };
 
-(function patchModularLoad() {
-  function tryHookModularLoad() {
-    // ищем объект modularLoad
-    const modloadInstance = findModularLoadInstance();
-    if (!modloadInstance) {
-      setTimeout(tryHookModularLoad, 300);
-      return;
+(function disableModularLoadTransitions() {
+  const tryPatch = () => {
+    // ищем модуль Load
+    const app = window.app;
+    const load = app?.modules?.Load;
+
+    if (load?.load?.goTo) {
+      load.load.goTo = function (...args) {
+        console.warn('[BLOCKED] ModularLoad goTo() вызов отменён:', ...args);
+        // Альтернатива — обычный переход:
+        // window.location.href = args[0];
+      };
+      console.log('[PATCHED] ModularLoad transitions отключены');
+    } else {
+      setTimeout(tryPatch, 300);
     }
+  };
 
-    // подписываемся на событие loaded
-    modloadInstance.on('loaded', () => {
-      console.log('[ModularLoad Patch] loaded triggered');
-      if (typeof window.initEventsCarousel === 'function') {
-        window.initEventsCarousel();
-      }
-    });
-
-    // Запускаем при первой загрузке тоже
-    if (typeof window.initEventsCarousel === 'function') {
-      window.initEventsCarousel();
-    }
-  }
-
-  function findModularLoadInstance() {
-    // пытаемся найти модульную загрузку (зависит от реализации)
-    if (window.load?.load?.on) return window.load.load;
-    for (let key in window) {
-      if (window[key]?.on && typeof window[key].goTo === 'function') {
-        return window[key];
-      }
-    }
-    return null;
-  }
-
-  tryHookModularLoad();
+  tryPatch();
 })();
+
