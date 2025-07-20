@@ -1,4 +1,4 @@
-// unified-carousel.js
+document.addEventListener('DOMContentLoaded', () => {
 
 // Scoped REM
 function updateScopedRem() {
@@ -390,4 +390,5 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(autoProgressTimeout);
     modal.style.display = 'none';
   });
+});
 });
