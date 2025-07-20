@@ -50,21 +50,51 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   eventSlides.forEach((slide, idx) => {
-    slide.addEventListener('click', () => openStory(idx));
+    slide.addEventListener('click', e => {
+      let trigger = e.target.closest('[eventid-out], .eventid-out') ||
+                    slide.querySelector('[eventid-out], .eventid-out');
+      if (trigger) {
+        const id = trigger.getAttribute('eventid-out') || trigger.dataset.eventidOut;
+        const match = storySlides.findIndex(s =>
+          (s.getAttribute('eventid-in') || s.dataset.eventidIn) === id
+        );
+        if (match !== -1) {
+          e.preventDefault();
+          e.stopPropagation();
+          openStory(match);
+          return;
+        }
+      }
+      openStory(idx);
+    });
   });
 
-  // Also open story when clicking an element with the `eventid-out` attribute
-  // or class inside a slide. This restores the behavior expected from the
-  // original markup where such elements trigger the modal.
-  document.querySelectorAll('[eventid-out], .eventid-out').forEach(el => {
-    el.addEventListener('click', e => {
-      const slide = e.currentTarget.closest('.swiper-slide.events');
-      if (!slide) return;
+  // Support opening a story when clicking any element associated with
+  // `eventid-out`. The click can originate on the element itself,
+  // an ancestor, or a container that simply contains such an element.
+  document.addEventListener('click', e => {
+    let el = e.target instanceof Element ? e.target : e.target.parentElement;
+
+    // Check if the clicked element or its ancestors have the attribute
+    let trigger = el && el.closest('[eventid-out], .eventid-out');
+
+    // If not, search inside the clicked element for a descendant with it
+    if (!trigger && el) trigger = el.querySelector('[eventid-out], .eventid-out');
+
+    if (!trigger) return;
+    const eventId = trigger.getAttribute('eventid-out') || trigger.dataset.eventidOut;
+
+    if (!eventId) return;
+
+    const idx = storySlides.findIndex(s =>
+      (s.getAttribute('eventid-in') || s.dataset.eventidIn) === eventId
+    );
+
+    if (idx !== -1) {
       e.preventDefault();
       e.stopPropagation();
-      const idx = eventSlides.indexOf(slide);
-      if (idx !== -1) openStory(idx);
-    });
+      openStory(idx);
+    }
   });
 
   function updateSlidesStyle() {
