@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 document.addEventListener('DOMContentLoaded', () => {
-
-=======
->>>>>>> 8211271e32273c61d52d3c1eb8fbb18f44d1f7ae
 // Scoped REM
 function updateScopedRem() {
     const wrapper = document.querySelector(".eventscarouselwrapper");
