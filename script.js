@@ -1,5 +1,3 @@
-// unified-carousel.js
-
 // Scoped REM
 function updateScopedRem() {
     const wrapper = document.querySelector(".eventscarouselwrapper");
