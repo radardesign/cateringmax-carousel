@@ -392,24 +392,25 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 };
 
-(function disableModularLoadTransitions() {
-  const tryPatch = () => {
-    // ищем модуль Load
-    const app = window.app;
-    const load = app?.modules?.Load;
-
-    if (load?.load?.goTo) {
-      load.load.goTo = function (...args) {
-        console.warn('[BLOCKED] ModularLoad goTo() вызов отменён:', ...args);
-        // Альтернатива — обычный переход:
-        // window.location.href = args[0];
-      };
-      console.log('[PATCHED] ModularLoad transitions отключены');
-    } else {
-      setTimeout(tryPatch, 300);
+(function observePageTransitions() {
+  const observer = new MutationObserver(() => {
+    const hasCarousel = document.querySelector('.eventscarouselwrapper');
+    if (hasCarousel) {
+      console.log('[MO] Обнаружена карусель, инициализируем заново');
+      if (typeof window.initEventsCarousel === 'function') {
+        window.initEventsCarousel();
+      }
     }
-  };
+  });
 
-  tryPatch();
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  // Запуск при первой загрузке тоже
+  if (typeof window.initEventsCarousel === 'function') {
+    window.initEventsCarousel();
+  }
 })();
 
